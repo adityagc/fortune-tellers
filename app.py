@@ -109,6 +109,7 @@ server = app.server
 app.layout = html.Div([
     html.H1(children='Fortune Teller', style={'text-align': 'center', 'margin-bottom': '10px'}),
     html.H2(children='Get a glimpse into the future of your favorite stocks', style={'text-align': 'center', 'margin-bottom': '20px'}),
+    html.H3(children='*Due to API limits, we currently support only 5 queries per minute.', style={'text-align': 'center', 'margin-bottom': '30px'}),
     html.Div([
         "Write a ticker and press Enter: ",
         dcc.Input(id='my-input', value='AAPL', type='text', debounce=True)
