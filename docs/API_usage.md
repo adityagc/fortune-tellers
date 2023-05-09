@@ -1,4 +1,0 @@
-- We are using the WIKIP data feed from NASDAQ, which contains end-of-day stock prices for 3000 publicly traded companies. Documentation can be found here: https://data.nasdaq.com/databases/WIKIP/documentation.
-- The default data request gives the following fields: 'Open', 'High', 'Low', 'Close', 'Volume', 'Ex-Dividend', 'Split Ratio', 'Adj. Open', 'Adj. High', 'Adj. Low', 'Adj. Close', 'Adj. Volume'
-- Python API usage documentation can be found here: https://data.nasdaq.com/tools/python
-- The data starts in Jan 1996
