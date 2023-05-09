@@ -5,13 +5,22 @@ from statsmodels.tsa.arima.model import ARIMA
 import plotly.express as px
 import plotly.graph_objects as go
 from jupyter_dash import JupyterDash
-from dash import  dash_table, dcc, html, ctx
-from dash.dependencies import Input, Output
+from dash import  Dash, dash_table, dcc, html, ctx, Input, Output
+import plotly.io as pio
+import pandas as pd
 from datetime import date
 my_key = "Y13BIJBJHU50T2YV"
 
 def get_data(ticker):
-    '''This function extracts data from the alphavantage API'''
+    """
+    Extracts daily stock price data for a given ticker from the AlphaVantage API and returns a pandas dataframe.
+
+    Args:
+    ticker (str): The stock symbol for the desired company, e.g. 'AAPL' for Apple Inc.
+
+    Returns:
+    pandas.DataFrame: A dataframe containing the daily closing prices for the given stock, with dates as the index.
+    """
     source = "https://www.alphavantage.co/query?"
     func = "function=TIME_SERIES_DAILY_ADJUSTED"+'&'
     symbol = "symbol="+ticker + '&'
@@ -25,7 +34,16 @@ def get_data(ticker):
     return df.iloc[::-1]
 
 def arima_forecast(ticker, df2):
-    '''This function creates a forecast'''
+    """
+    Performs an ARIMA forecast on a given DataFrame of stock prices.
+
+    Args:
+        ticker (str): The stock ticker symbol.
+        df2 (pandas.DataFrame): The DataFrame containing historical stock prices.
+    
+    Returns:
+        pandas.DataFrame: A DataFrame containing historical and forecasted stock prices, with columns for 'Ticker', 'Date', 'Close', 'Forecasted Price', 'Lower 95', 'Upper 95', 'Lower 75', 'Upper 75', 'Lower 50', and 'Upper 50'.
+    """
     forecast_df = pd.DataFrame(columns=['Ticker','Date', 'Close', 'Forecasted Price'])
      # Convert the date column to datetime format
     df2=df2.reset_index()
@@ -56,26 +74,38 @@ def arima_forecast(ticker, df2):
     return merged_df
 
 def search_by_ticker(ticker):
-    '''This function takes ticker as input and returns a dataframe containing closing price and forecast as output'''
+    '''
+    This function takes a stock ticker symbol as input and returns a pandas DataFrame containing the closing price and
+    forecasted prices for the next 8 days using the ARIMA model.
+
+    Parameters:
+    ticker (str): A stock ticker symbol for the company whose stock price is to be forecasted.
+
+    Returns:
+    pandas.DataFrame: A DataFrame with columns for the date, closing price, and forecasted prices for the next 8 days,
+    along with confidence intervals at 50%, 75%, and 95% levels.
+    '''
     closing = get_data(ticker)
     output_df = arima_forecast(ticker, closing)
     return output_df
 
-# marksd = {}
-# for i in  range(2000, 2024, 2):
-#     marksd[i] = str(i)
+marksd = {}
+for i in  range(2000, 2024, 2):
+    marksd[i] = str(i)
 
 
-app = JupyterDash(__name__)
+app = Dash(__name__)
 
 app.layout = html.Div([
+    html.H1(children='Fortune Teller', style={'text-align': 'center', 'margin-bottom': '10px'}),
+    html.H2(children='Get a glimpse into the future of your favorite stocks', style={'text-align': 'center', 'margin-bottom': '20px'}),
     html.Div([
         "Enter a ticker: ",
         dcc.Input(id='my-input', value='AAPL', type='text')
-    ]), 
+    ], style={'width': '80%', 'margin-left': 90}), 
     html.Div([
-        dcc.Graph(id='my-subplot', style={'width': '100%'}),
-    ], style={'width': '100%', 'display': 'flex', 'justify-content': 'center'}),
+        dcc.Graph(id='my-subplot', style={'width': '95%'}),
+    ], style={'width': '100%', 'display': 'flex', 'justify-content': 'center', 'margin-top': '20px'}),
     html.Div([
         html.P('Select a time interval using the slider:'),
         dcc.RangeSlider(
@@ -86,7 +116,7 @@ app.layout = html.Div([
             value=[2001, 2023],
             id='year-slider'
         ),
-    ], style={'width': '80%', 'margin': 'auto'}),
+    ], style={'width': '80%', 'margin-left': 90}),
     html.Div([
         html.P('Select a time interval using the calander: '),
         dcc.DatePickerRange(
@@ -98,14 +128,14 @@ app.layout = html.Div([
         max_date_allowed=date.today(),
         initial_visible_month=date(2023, 1, 1),
         )]
-        ,style={'width': '80%','display': 'flex', 'flex-direction': 'column', 'align-items': 'flex-start', 'margin-left': 100}),
+        ,style={'width': '80%','display': 'flex', 'flex-direction': 'column', 'align-items': 'flex-start', 'margin-left': 90}),
 
 
     html.Br(),
     html.Br(),
     html.Br(),
     html.Div([
-        dcc.Graph(id='my-second-subplot', style={'width': '100%'})
+        dcc.Graph(id='my-second-subplot', style={'width': '95%'})
     ], style={'width': '100%', 'display': 'flex', 'justify-content': 'center'}),
     html.Div([
         html.P('Select a confidence interval:'),
@@ -117,10 +147,10 @@ app.layout = html.Div([
                 {'label': '95%', 'value': 0.95}
             ],
             value=0.95,
-            labelStyle={'width': '100%','display': 'flex', 'flex-direction': 'row', 'margin':'0px'}
+            labelStyle={'width': '100%','display': 'flex', 'flex-direction': 'row', 'margin':'5px'}
         )
     ], style={'width': '80%', 'margin': 'auto'}),
-])
+], style={'background-color': '#1a1a1a', 'color': 'white', 'font-family': 'Arial'})
 
 @app.callback(
     Output('my-subplot', 'figure'),
@@ -132,6 +162,22 @@ app.layout = html.Div([
      Input('ci-selector', 'value'))
 
 def update_graph(start_date, end_date,input_data, year_value, confidence_interval):
+    """
+    Update the graphs in the app based on the selected inputs.
+
+    Args:
+    - start_date (str): The start date of the selected date range as a string in the format 'YYYY-MM-DD'.
+    - end_date (str): The end date of the selected date range as a string in the format 'YYYY-MM-DD'.
+    - input_data (str): The ticker symbol of the selected stock.
+    - year_value (Tuple[int, int]): The range of years selected using the year slider.
+    - confidence_interval (float): The confidence interval selected using the radio buttons.
+
+    Returns:
+    - Tuple[go.Figure, go.Figure]: A tuple of two Plotly figures. The first one displays the historical and forecasted 
+    prices of the stock and the second one shows the distribution of forecasted prices and the confidence intervals 
+    around them.
+    """
+    pio.templates.default = "plotly_dark"
     trig_id = ctx.triggered_id if not None else 'No clicks yet'
     #dfticker = df.loc[df['Ticker'] == input_data]
     dfticker = search_by_ticker(input_data)
@@ -151,21 +197,21 @@ def update_graph(start_date, end_date,input_data, year_value, confidence_interva
         start_date_object = date.fromisoformat(start_date)
         end_date_object = date.fromisoformat(end_date)
         fig1.update_xaxes(
-            title='',
+            title='Date',
             range=(pd.Timestamp(year=start_date_object.year, month=start_date_object.month, day=start_date_object.day, hour=0),
                    pd.Timestamp(year=end_date_object.year, month=end_date_object.month, day = end_date_object.day, hour=0)),
             constrain='domain'
         )
     else: 
         fig1.update_xaxes(
-            title='',
+            title='Date',
             range=(pd.Timestamp(year=year_value[0], month=1, day=1, hour=0),
                    pd.Timestamp(year=year_value[1], month=date.today().month, day = date.today().day, hour=0)),
             constrain='domain'
         )
 
     
-    fig1.update_layout(title='Closing Price')
+    fig1.update_layout(title=f'Closing Price of {input_data} over the years')
 
     fig2.add_trace(go.Scatter(x=dftickerpast_filtered['Date'], y=dftickerpast_filtered['Close'], name='Close'))
     fig2.add_trace(go.Scatter(x=dftickerfuture['Date'], y=dftickerfuture['Forecasted Price'], name='Forecasted Price'))
@@ -187,15 +233,18 @@ def update_graph(start_date, end_date,input_data, year_value, confidence_interva
         fig2.add_trace(go.Scatter(x=dftickerfuture['Date'], y=dftickerfuture[upper_col], name=f'{int(confidence_interval*100)}% Confidence Interval', fill='tonexty', line=dict(color='gray', width=0)))
 
     fig2.update_xaxes(
-        title='',
+        title='Date',
         range=(dftickerpast_filtered['Date'].min(), dftickerfuture['Date'].max()),
         constrain='domain'
     )
-    fig2.update_layout(title='Forecasted Price with Confidence Interval')
 
+    fig1.update_yaxes(title='Price in Dollars')
+    fig2.update_yaxes(title='Price in Dollars')
+
+
+    fig2.update_layout(title=f"Forecasted Price of {input_data} with {int(confidence_interval*100)}% Confidence Interval")
     return fig1, fig2
 
 if __name__ == '__main__':
-    app.run_server(mode='inline')
-    
+    app.run_server(debug=True)
     
