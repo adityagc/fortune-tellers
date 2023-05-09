@@ -10,6 +10,9 @@ import plotly.io as pio
 import pandas as pd
 from datetime import date
 my_key = "Y13BIJBJHU50T2YV"
+import os
+
+server = app.server
 
 def get_data(ticker):
     """
