@@ -5,15 +5,11 @@ from statsmodels.tsa.arima.model import ARIMA
 import plotly.express as px
 import plotly.graph_objects as go
 from jupyter_dash import JupyterDash
-from dash import  dash_table, dcc, html, ctx, Input, Output
+from dash import  Dash, dash_table, dcc, html, ctx, Input, Output
 import plotly.io as pio
 import pandas as pd
 from datetime import date
-import dash
 my_key = "Y13BIJBJHU50T2YV"
-from dash import Dash, dcc, html, Input, Output
-import os
-server = app.server
 
 def get_data(ticker):
     """
@@ -32,14 +28,14 @@ def get_data(ticker):
     outputsize = 'outputsize=full' + '&'
     apikey="apikey=" + my_key
     url = source + func + symbol + outputsize + datatype + apikey
-    r = requests.get(url)
-    data = r.json()
-    if (len(data)>1):
+    try:
+        r = requests.get(url)
+        data = r.json()
         df = pd.DataFrame(data['Time Series (Daily)']).T["4. close"]
         return df.iloc[::-1]
-    else:
-        return 0
-
+    except:
+        return None
+    
 def arima_forecast(ticker, df2):
     """
     Performs an ARIMA forecast on a given DataFrame of stock prices.
@@ -51,34 +47,37 @@ def arima_forecast(ticker, df2):
     Returns:
         pandas.DataFrame: A DataFrame containing historical and forecasted stock prices, with columns for 'Ticker', 'Date', 'Close', 'Forecasted Price', 'Lower 95', 'Upper 95', 'Lower 75', 'Upper 75', 'Lower 50', and 'Upper 50'.
     """
-    forecast_df = pd.DataFrame(columns=['Ticker','Date', 'Close', 'Forecasted Price'])
-     # Convert the date column to datetime format
-    df2=df2.reset_index()
-    df2.columns = ['Date','Close']
-    df2['Date'] = pd.to_datetime(df2['Date'])
-    df2['Close'] = pd.to_numeric(df2['Close'],errors='coerce')
-    # Perform ARIMA forecast
-    ar1_model = ARIMA(df2['Close'], order=(3, 2, 0))
-    ar1_fit = ar1_model.fit()
-    forecast = ar1_fit.forecast(steps=8)
+    if df2 is not None:
+        forecast_df = pd.DataFrame(columns=['Ticker','Date', 'Close', 'Forecasted Price'])
+        # Convert the date column to datetime format
+        df2=df2.reset_index()
+        df2.columns = ['Date','Close']
+        df2['Date'] = pd.to_datetime(df2['Date'])
+        df2['Close'] = pd.to_numeric(df2['Close'],errors='coerce')
+        # Perform ARIMA forecast
+        ar1_model = ARIMA(df2['Close'], order=(3, 2, 0))
+        ar1_fit = ar1_model.fit()
+        forecast = ar1_fit.forecast(steps=8)
 
 
-    forecast_95 = ar1_fit.get_forecast(8)
-    yhat_95 = forecast_95.conf_int(alpha=0.05)
+        forecast_95 = ar1_fit.get_forecast(8)
+        yhat_95 = forecast_95.conf_int(alpha=0.05)
 
-    forecast_75=ar1_fit.get_forecast(8)
-    yhat_75 = forecast_95.conf_int(alpha=0.25)
+        forecast_75=ar1_fit.get_forecast(8)
+        yhat_75 = forecast_95.conf_int(alpha=0.25)
 
-    forecast_50=ar1_fit.get_forecast(8)
-    yhat_50 = forecast_95.conf_int(alpha=0.5)
+        forecast_50=ar1_fit.get_forecast(8)
+        yhat_50 = forecast_95.conf_int(alpha=0.5)
 
 
-    # Create a new dataframe with the forecasted values
-    forecast_df = pd.DataFrame({'Ticker': ticker,'Date': pd.date_range(start=df2['Date'].iloc[-1]+pd.DateOffset(1), periods=8),
-                                        'Forecasted Price': forecast,'Lower 95':yhat_95.iloc[:,0],'Upper 95':yhat_95.iloc[:,1],'Lower 75':yhat_75.iloc[:,0],'Upper 75':yhat_75.iloc[:,1],'Lower 50':yhat_50.iloc[:,0],'Upper 50':yhat_50.iloc[:,1]},
-                                       index=None)
-    merged_df = pd.concat([df2, forecast_df])#.reset_index()
-    return merged_df
+        # Create a new dataframe with the forecasted values
+        forecast_df = pd.DataFrame({'Ticker': ticker,'Date': pd.date_range(start=df2['Date'].iloc[-1]+pd.DateOffset(1), periods=8),
+                                            'Forecasted Price': forecast,'Lower 95':yhat_95.iloc[:,0],'Upper 95':yhat_95.iloc[:,1],'Lower 75':yhat_75.iloc[:,0],'Upper 75':yhat_75.iloc[:,1],'Lower 50':yhat_50.iloc[:,0],'Upper 50':yhat_50.iloc[:,1]},
+                                        index=None)
+        merged_df = pd.concat([df2, forecast_df])#.reset_index()
+        return merged_df
+    else:
+        return None
 
 def search_by_ticker(ticker):
     '''
@@ -92,29 +91,23 @@ def search_by_ticker(ticker):
     pandas.DataFrame: A DataFrame with columns for the date, closing price, and forecasted prices for the next 8 days,
     along with confidence intervals at 50%, 75%, and 95% levels.
     '''
-    
     closing = get_data(ticker)
-    if type(closing) == int:
-        return 0
-    else:
-        output_df = arima_forecast(ticker, closing)
-        return output_df
-
-
+    output_df = arima_forecast(ticker, closing)
+    return output_df
 
 marksd = {}
 for i in  range(2000, 2024, 2):
     marksd[i] = str(i)
 
 
-app = JupyterDash(__name__)
-
+app = Dash(__name__)
+server = app.server
 app.layout = html.Div([
     html.H1(children='Fortune Teller', style={'text-align': 'center', 'margin-bottom': '10px'}),
     html.H2(children='Get a glimpse into the future of your favorite stocks', style={'text-align': 'center', 'margin-bottom': '20px'}),
     html.Div([
-        "Write a ticker and press Enter: ",
-        dcc.Input(id='my-input', value='AAPL', type='text', debounce=True)
+        "Enter a ticker: ",
+        dcc.Input(id='my-input', value='AAPL', type='text')
     ], style={'width': '80%', 'margin-left': 90}), 
     html.Div([
         dcc.Graph(id='my-subplot', style={'width': '95%'}),
@@ -194,8 +187,6 @@ def update_graph(start_date, end_date,input_data, year_value, confidence_interva
     trig_id = ctx.triggered_id if not None else 'No clicks yet'
     #dfticker = df.loc[df['Ticker'] == input_data]
     dfticker = search_by_ticker(input_data)
-    if type(dfticker)== int:
-        raise dash.exceptions.PreventUpdate
     dftickerpast = dfticker.loc[dfticker['Close'].notnull()]
     dftickerfuture = dfticker.loc[dfticker['Forecasted Price'].notnull()]
 
@@ -261,5 +252,5 @@ def update_graph(start_date, end_date,input_data, year_value, confidence_interva
     return fig1, fig2
 
 if __name__ == '__main__':
-    app.run_server()
+    app.run_server(debug=True)
     
