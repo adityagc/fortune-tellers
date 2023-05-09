@@ -13,7 +13,7 @@ import dash
 my_key = "Y13BIJBJHU50T2YV"
 from dash import Dash, dcc, html, Input, Output
 import os
-# server = app.server
+server = app.server
 
 def get_data(ticker):
     """
