@@ -9,6 +9,7 @@ from dash import  Dash, dash_table, dcc, html, ctx, Input, Output
 import plotly.io as pio
 import pandas as pd
 from datetime import date
+# import dash
 my_key = "Y13BIJBJHU50T2YV"
 
 def get_data(ticker):
@@ -28,14 +29,14 @@ def get_data(ticker):
     outputsize = 'outputsize=full' + '&'
     apikey="apikey=" + my_key
     url = source + func + symbol + outputsize + datatype + apikey
-    try:
-        r = requests.get(url)
-        data = r.json()
+    r = requests.get(url)
+    data = r.json()
+    if (len(data)>1):
         df = pd.DataFrame(data['Time Series (Daily)']).T["4. close"]
         return df.iloc[::-1]
-    except:
-        return None
-    
+    else:
+        return 0
+
 def arima_forecast(ticker, df2):
     """
     Performs an ARIMA forecast on a given DataFrame of stock prices.
@@ -47,37 +48,34 @@ def arima_forecast(ticker, df2):
     Returns:
         pandas.DataFrame: A DataFrame containing historical and forecasted stock prices, with columns for 'Ticker', 'Date', 'Close', 'Forecasted Price', 'Lower 95', 'Upper 95', 'Lower 75', 'Upper 75', 'Lower 50', and 'Upper 50'.
     """
-    if df2 is not None:
-        forecast_df = pd.DataFrame(columns=['Ticker','Date', 'Close', 'Forecasted Price'])
-        # Convert the date column to datetime format
-        df2=df2.reset_index()
-        df2.columns = ['Date','Close']
-        df2['Date'] = pd.to_datetime(df2['Date'])
-        df2['Close'] = pd.to_numeric(df2['Close'],errors='coerce')
-        # Perform ARIMA forecast
-        ar1_model = ARIMA(df2['Close'], order=(3, 2, 0))
-        ar1_fit = ar1_model.fit()
-        forecast = ar1_fit.forecast(steps=8)
+    forecast_df = pd.DataFrame(columns=['Ticker','Date', 'Close', 'Forecasted Price'])
+     # Convert the date column to datetime format
+    df2=df2.reset_index()
+    df2.columns = ['Date','Close']
+    df2['Date'] = pd.to_datetime(df2['Date'])
+    df2['Close'] = pd.to_numeric(df2['Close'],errors='coerce')
+    # Perform ARIMA forecast
+    ar1_model = ARIMA(df2['Close'], order=(3, 2, 0))
+    ar1_fit = ar1_model.fit()
+    forecast = ar1_fit.forecast(steps=8)
 
 
-        forecast_95 = ar1_fit.get_forecast(8)
-        yhat_95 = forecast_95.conf_int(alpha=0.05)
+    forecast_95 = ar1_fit.get_forecast(8)
+    yhat_95 = forecast_95.conf_int(alpha=0.05)
 
-        forecast_75=ar1_fit.get_forecast(8)
-        yhat_75 = forecast_95.conf_int(alpha=0.25)
+    forecast_75=ar1_fit.get_forecast(8)
+    yhat_75 = forecast_95.conf_int(alpha=0.25)
 
-        forecast_50=ar1_fit.get_forecast(8)
-        yhat_50 = forecast_95.conf_int(alpha=0.5)
+    forecast_50=ar1_fit.get_forecast(8)
+    yhat_50 = forecast_95.conf_int(alpha=0.5)
 
 
-        # Create a new dataframe with the forecasted values
-        forecast_df = pd.DataFrame({'Ticker': ticker,'Date': pd.date_range(start=df2['Date'].iloc[-1]+pd.DateOffset(1), periods=8),
-                                            'Forecasted Price': forecast,'Lower 95':yhat_95.iloc[:,0],'Upper 95':yhat_95.iloc[:,1],'Lower 75':yhat_75.iloc[:,0],'Upper 75':yhat_75.iloc[:,1],'Lower 50':yhat_50.iloc[:,0],'Upper 50':yhat_50.iloc[:,1]},
-                                        index=None)
-        merged_df = pd.concat([df2, forecast_df])#.reset_index()
-        return merged_df
-    else:
-        return None
+    # Create a new dataframe with the forecasted values
+    forecast_df = pd.DataFrame({'Ticker': ticker,'Date': pd.date_range(start=df2['Date'].iloc[-1]+pd.DateOffset(1), periods=8),
+                                        'Forecasted Price': forecast,'Lower 95':yhat_95.iloc[:,0],'Upper 95':yhat_95.iloc[:,1],'Lower 75':yhat_75.iloc[:,0],'Upper 75':yhat_75.iloc[:,1],'Lower 50':yhat_50.iloc[:,0],'Upper 50':yhat_50.iloc[:,1]},
+                                       index=None)
+    merged_df = pd.concat([df2, forecast_df])#.reset_index()
+    return merged_df
 
 def search_by_ticker(ticker):
     '''
@@ -91,9 +89,15 @@ def search_by_ticker(ticker):
     pandas.DataFrame: A DataFrame with columns for the date, closing price, and forecasted prices for the next 8 days,
     along with confidence intervals at 50%, 75%, and 95% levels.
     '''
+    
     closing = get_data(ticker)
-    output_df = arima_forecast(ticker, closing)
-    return output_df
+    if type(closing) == int:
+        return 0
+    else:
+        output_df = arima_forecast(ticker, closing)
+        return output_df
+
+
 
 marksd = {}
 for i in  range(2000, 2024, 2):
@@ -106,8 +110,8 @@ app.layout = html.Div([
     html.H1(children='Fortune Teller', style={'text-align': 'center', 'margin-bottom': '10px'}),
     html.H2(children='Get a glimpse into the future of your favorite stocks', style={'text-align': 'center', 'margin-bottom': '20px'}),
     html.Div([
-        "Enter a ticker: ",
-        dcc.Input(id='my-input', value='AAPL', type='text')
+        "Write a ticker and press Enter: ",
+        dcc.Input(id='my-input', value='AAPL', type='text', debounce=True)
     ], style={'width': '80%', 'margin-left': 90}), 
     html.Div([
         dcc.Graph(id='my-subplot', style={'width': '95%'}),
@@ -183,77 +187,76 @@ def update_graph(start_date, end_date,input_data, year_value, confidence_interva
     prices of the stock and the second one shows the distribution of forecasted prices and the confidence intervals 
     around them.
     """
-    try:
-        pio.templates.default = "plotly_dark"
-        trig_id = ctx.triggered_id if not None else 'No clicks yet'
-        #dfticker = df.loc[df['Ticker'] == input_data]
-        dfticker = search_by_ticker(input_data)
-        dftickerpast = dfticker.loc[dfticker['Close'].notnull()]
-        dftickerfuture = dfticker.loc[dfticker['Forecasted Price'].notnull()]
+    pio.templates.default = "plotly_dark"
+    trig_id = ctx.triggered_id if not None else 'No clicks yet'
+    #dfticker = df.loc[df['Ticker'] == input_data]
+    dfticker = search_by_ticker(input_data)
+    if type(dfticker)== int:
+        raise dash.exceptions.PreventUpdate
+    dftickerpast = dfticker.loc[dfticker['Close'].notnull()]
+    dftickerfuture = dfticker.loc[dfticker['Forecasted Price'].notnull()]
 
-        # Filter dftickerpast to get only the data for the 7 days before the start date of dftickerfuture
-        start_date_f = dftickerfuture['Date'].min() - pd.Timedelta(days=7)
-        end_date_f = dftickerfuture['Date'].min()
-        dftickerpast_filtered = dftickerpast.loc[(dftickerpast['Date'] >= start_date_f) & (dftickerpast['Date'] <= end_date_f)]
+    # Filter dftickerpast to get only the data for the 7 days before the start date of dftickerfuture
+    start_date_f = dftickerfuture['Date'].min() - pd.Timedelta(days=7)
+    end_date_f = dftickerfuture['Date'].min()
+    dftickerpast_filtered = dftickerpast.loc[(dftickerpast['Date'] >= start_date_f) & (dftickerpast['Date'] <= end_date_f)]
 
-        fig1 = go.Figure()
-        fig2 = go.Figure()
+    fig1 = go.Figure()
+    fig2 = go.Figure()
 
-        fig1.add_trace(go.Scatter(x=dftickerpast['Date'], y=dftickerpast['Close'], name='Close'))
-        if trig_id == 'my-date-picker-range':
-            start_date_object = date.fromisoformat(start_date)
-            end_date_object = date.fromisoformat(end_date)
-            fig1.update_xaxes(
-                title='Date',
-                range=(pd.Timestamp(year=start_date_object.year, month=start_date_object.month, day=start_date_object.day, hour=0),
-                    pd.Timestamp(year=end_date_object.year, month=end_date_object.month, day = end_date_object.day, hour=0)),
-                constrain='domain'
-            )
-        else: 
-            fig1.update_xaxes(
-                title='Date',
-                range=(pd.Timestamp(year=year_value[0], month=1, day=1, hour=0),
-                    pd.Timestamp(year=year_value[1], month=date.today().month, day = date.today().day, hour=0)),
-                constrain='domain'
-            )
-
-        
-        fig1.update_layout(title=f'Closing Price of {input_data} over the years')
-
-        fig2.add_trace(go.Scatter(x=dftickerpast_filtered['Date'], y=dftickerpast_filtered['Close'], name='Close'))
-        fig2.add_trace(go.Scatter(x=dftickerfuture['Date'], y=dftickerfuture['Forecasted Price'], name='Forecasted Price'))
-        if confidence_interval == 0.5:
-            lower_col = 'Lower 50'
-            upper_col = 'Upper 50'
-        elif confidence_interval == 0.75:
-            lower_col = 'Lower 75'
-            upper_col = 'Upper 75'
-        elif confidence_interval == 0.95:
-            lower_col = 'Lower 95'
-            upper_col = 'Upper 95'
-        else:
-            lower_col = None
-            upper_col = None
-
-        if lower_col is not None and upper_col is not None:
-            fig2.add_trace(go.Scatter(x=dftickerfuture['Date'], y=dftickerfuture[lower_col], name='', line=dict(color='gray', width=0)))
-            fig2.add_trace(go.Scatter(x=dftickerfuture['Date'], y=dftickerfuture[upper_col], name=f'{int(confidence_interval*100)}% Confidence Interval', fill='tonexty', line=dict(color='gray', width=0)))
-
-        fig2.update_xaxes(
+    fig1.add_trace(go.Scatter(x=dftickerpast['Date'], y=dftickerpast['Close'], name='Close'))
+    if trig_id == 'my-date-picker-range':
+        start_date_object = date.fromisoformat(start_date)
+        end_date_object = date.fromisoformat(end_date)
+        fig1.update_xaxes(
             title='Date',
-            range=(dftickerpast_filtered['Date'].min(), dftickerfuture['Date'].max()),
+            range=(pd.Timestamp(year=start_date_object.year, month=start_date_object.month, day=start_date_object.day, hour=0),
+                   pd.Timestamp(year=end_date_object.year, month=end_date_object.month, day = end_date_object.day, hour=0)),
+            constrain='domain'
+        )
+    else: 
+        fig1.update_xaxes(
+            title='Date',
+            range=(pd.Timestamp(year=year_value[0], month=1, day=1, hour=0),
+                   pd.Timestamp(year=year_value[1], month=date.today().month, day = date.today().day, hour=0)),
             constrain='domain'
         )
 
-        fig1.update_yaxes(title='Price in Dollars')
-        fig2.update_yaxes(title='Price in Dollars')
+    
+    fig1.update_layout(title=f'Closing Price of {input_data} over the years')
+
+    fig2.add_trace(go.Scatter(x=dftickerpast_filtered['Date'], y=dftickerpast_filtered['Close'], name='Close'))
+    fig2.add_trace(go.Scatter(x=dftickerfuture['Date'], y=dftickerfuture['Forecasted Price'], name='Forecasted Price'))
+    if confidence_interval == 0.5:
+        lower_col = 'Lower 50'
+        upper_col = 'Upper 50'
+    elif confidence_interval == 0.75:
+        lower_col = 'Lower 75'
+        upper_col = 'Upper 75'
+    elif confidence_interval == 0.95:
+        lower_col = 'Lower 95'
+        upper_col = 'Upper 95'
+    else:
+        lower_col = None
+        upper_col = None
+
+    if lower_col is not None and upper_col is not None:
+        fig2.add_trace(go.Scatter(x=dftickerfuture['Date'], y=dftickerfuture[lower_col], name='', line=dict(color='gray', width=0)))
+        fig2.add_trace(go.Scatter(x=dftickerfuture['Date'], y=dftickerfuture[upper_col], name=f'{int(confidence_interval*100)}% Confidence Interval', fill='tonexty', line=dict(color='gray', width=0)))
+
+    fig2.update_xaxes(
+        title='Date',
+        range=(dftickerpast_filtered['Date'].min(), dftickerfuture['Date'].max()),
+        constrain='domain'
+    )
+
+    fig1.update_yaxes(title='Price in Dollars')
+    fig2.update_yaxes(title='Price in Dollars')
 
 
-        fig2.update_layout(title=f"Forecasted Price of {input_data} with {int(confidence_interval*100)}% Confidence Interval")
-        return fig1, fig2
-    except:
-        pass
+    fig2.update_layout(title=f"Forecasted Price of {input_data} with {int(confidence_interval*100)}% Confidence Interval")
+    return fig1, fig2
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(mode='inline')
     
