@@ -1,6 +1,11 @@
 Fortune Teller App
 
 This is a Dash app that allows users to visualize the historical stock prices and predict future prices of selected companies, as well as adjust the parameters of the prediction model and the confidence interval. The app is designed to be interactive, responsive, and easy to use.
+The app is deployed via a hosting service called Heroku and the link to our standalone visualization can be found here- https://fortune-tellers.herokuapp.com/
+
+Disclaimer-
+Please note that due to API limitations, we can currently only query 5 tickers per minute. 
+Also note that there is a gap between the last date recorded and the first day of forecast which represents the time difference between the closing time of that day (5 pm) and the opening bell of the next day (8 am).
 
 Design Rationale
 
@@ -34,7 +39,7 @@ During our development process, we encountered several challenges across various
 
 Secondly, implementing the prediction model involved selecting the appropriate machine learning algorithms and optimizing performance and accuracy. This process required considerable effort and tuning to achieve the desired results.
 
-As for the implementation of the prediction model, we decided to use the ARIMA model due to its ability to handle time-series data and capture the complex patterns that may exist in our data. We found that it was suitable for our project requirements and could produce accurate predictions for future trends.
+As for the implementation of the prediction model, we decided to use the ARIMAl due to its ability to handle time-series data and capture the complex patterns that may exist in our data. We found that it was suitable for our project requirements and could produce accurate predictions for future trends.
 
 Thirdly, designing the user interface was also challenging, as we relied solely on internal feedback and discussion to create an intuitive and user-friendly experience. Styling the app proved to be particularly difficult, and required extra attention to ensure a polished final product.
 

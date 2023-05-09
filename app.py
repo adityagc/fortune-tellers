@@ -111,7 +111,7 @@ app.layout = html.Div([
     html.H2(children='Get a glimpse into the future of your favorite stocks', style={'text-align': 'center', 'margin-bottom': '20px'}),
     html.H3(children='*Due to API limits, we currently support only 5 queries per minute.', style={'text-align': 'center', 'margin-bottom': '30px'}),
     html.Div([
-        "Write a ticker and press Enter (e.g. AAPL, AMZN, NFLX, SHEL etc.): ",
+        "Write a ticker (e.g. AAPL, AMZN, NFLX, SHEL etc.) and press Enter : ",
         dcc.Input(id='my-input', value='AAPL', type='text', debounce=True)
     ], style={'width': '80%', 'margin-left': 90}), 
     html.Div([
